@@ -1,0 +1,41 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ]
+    }
+  ],
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "elearning-app-fr-260406",
+          "appId": "1:735808848786:android:f41f1ec6ae186329cff74b",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "elearning-app-fr-260406",
+          "configurations": {
+            "android": "1:735808848786:android:f41f1ec6ae186329cff74b",
+            "ios": "1:735808848786:ios:114a2ac3107247d6cff74b",
+            "macos": "1:735808848786:ios:114a2ac3107247d6cff74b",
+            "web": "1:735808848786:web:382347251a286fe1cff74b",
+            "windows": "1:735808848786:web:22c004eadc765bdbcff74b"
+          }
+        }
+      }
+    }
+  }
+}
