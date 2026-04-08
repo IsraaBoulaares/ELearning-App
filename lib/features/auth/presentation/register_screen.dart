@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../providers/auth_providers.dart';
 import '../../learning/providers/learning_providers.dart';
 
@@ -80,22 +81,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String _mapAuthError(Object error) {
     if (error is FirebaseAuthException) {
       switch (error.code) {
-        case 'configuration-not-found':
-          return 'Authentication is not properly configured. Please ensure Email/Password is enabled in the Firebase Console.';
         case 'email-already-in-use':
           return 'This email is already registered. Please log in instead.';
         case 'invalid-email':
           return 'The email address is not valid.';
-        case 'operation-not-allowed':
-          return 'Email/Password accounts are not enabled. Please enable them in the Firebase Console.';
         case 'weak-password':
           return 'The password is too weak.';
         default:
-          return error.message ?? 'An unknown authentication error occurred.';
+          return error.message ?? 'Registration failed.';
       }
-    }
-    if (error is Exception) {
-      return error.toString().replaceFirst('Exception: ', '');
     }
     return 'Registration failed. Please try again.';
   }
@@ -103,100 +97,191 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Register')),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Create your account',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Join the platform in a minute',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 24),
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                    validator: (value) {
-                      final text = value?.trim() ?? '';
-                      if (text.isEmpty) {
-                        return 'Email is required';
-                      }
-                      if (!text.contains('@')) {
-                        return 'Enter a valid email';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    validator: (value) {
-                      final text = value ?? '';
-                      if (text.isEmpty) {
-                        return 'Password is required';
-                      }
-                      if (text.length < 6) {
-                        return 'Password must be at least 6 characters';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _confirmPasswordController,
-                    obscureText: true,
-                    textInputAction: TextInputAction.done,
-                    decoration:
-                        const InputDecoration(labelText: 'Confirm password'),
-                    onFieldSubmitted: (_) => _isLoading ? null : _submit(),
-                    validator: (value) {
-                      if ((value ?? '').isEmpty) {
-                        return 'Please confirm your password';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  if (_errorMessage != null)
-                    Text(
-                      _errorMessage!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppTheme.backgroundDark, Color(0xFF1A1A2E)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // App Logo
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          gradient: AppTheme.primaryGradient,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primaryPurple.withOpacity(0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Text(
+                            '📚',
+                            style: TextStyle(fontSize: 40),
+                          ),
+                        ),
                       ),
-                    ),
-                  if (_errorMessage != null) const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _isLoading ? null : _submit,
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Create Account'),
+                      const SizedBox(height: 32),
+                      
+                      // Welcome Text
+                      const Text(
+                        'Create Account',
+                        style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Join thousands of learners worldwide',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 16,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 48),
+                      
+                      // Email Field
+                      TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        style: const TextStyle(color: AppTheme.textPrimary),
+                        decoration: const InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: Icon(Icons.email_outlined, color: AppTheme.primaryPurple),
+                        ),
+                        validator: (value) {
+                          final text = value?.trim() ?? '';
+                          if (text.isEmpty) {
+                            return 'Email is required';
+                          }
+                          if (!text.contains('@')) {
+                            return 'Enter a valid email';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      // Password Field
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        textInputAction: TextInputAction.next,
+                        style: const TextStyle(color: AppTheme.textPrimary),
+                        decoration: const InputDecoration(
+                          labelText: 'Password',
+                          prefixIcon: Icon(Icons.lock_outline, color: AppTheme.primaryPurple),
+                        ),
+                        validator: (value) {
+                          final text = value ?? '';
+                          if (text.isEmpty) {
+                            return 'Password is required';
+                          }
+                          if (text.length < 6) {
+                            return 'Password must be at least 6 characters';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      // Confirm Password Field
+                      TextFormField(
+                        controller: _confirmPasswordController,
+                        obscureText: true,
+                        textInputAction: TextInputAction.done,
+                        style: const TextStyle(color: AppTheme.textPrimary),
+                        decoration: const InputDecoration(
+                          labelText: 'Confirm Password',
+                          prefixIcon: Icon(Icons.lock_outline, color: AppTheme.primaryPurple),
+                        ),
+                        onFieldSubmitted: (_) => _isLoading ? null : _submit(),
+                        validator: (value) {
+                          if ((value ?? '').isEmpty) {
+                            return 'Please confirm your password';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 32),
+                      
+                      // Error Message
+                      if (_errorMessage != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppTheme.hardRed.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppTheme.hardRed.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline, color: AppTheme.hardRed, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: const TextStyle(color: AppTheme.hardRed),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                      
+                      // Register Button
+                      AppTheme.gradientButton(
+                        text: 'Create Account',
+                        onPressed: _submit,
+                        isLoading: _isLoading,
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      // Login Link
+                      TextButton(
+                        onPressed: _isLoading ? null : () => context.go('/login'),
+                        child: RichText(
+                          text: const TextSpan(
+                            text: 'Already have an account? ',
+                            style: TextStyle(color: AppTheme.textSecondary),
+                            children: [
+                              TextSpan(
+                                text: 'Sign In',
+                                style: TextStyle(
+                                  color: AppTheme.primaryPurple,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: _isLoading ? null : () => context.go('/login'),
-                    child: const Text('Already have an account? Log in'),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

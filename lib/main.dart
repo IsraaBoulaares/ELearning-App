@@ -66,9 +66,12 @@ class MyApp extends ConsumerWidget {
     final authState = ref.watch(authStateProvider);
 
     return MaterialApp.router(
-      title: 'eLearning App',
-      theme: AppTheme.lightTheme,
+      title: 'LearnFlow',
+      theme: AppTheme.darkTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.dark,
       routerConfig: router,
+      debugShowCheckedModeBanner: false,
     );
   }
 }
