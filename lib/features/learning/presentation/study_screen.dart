@@ -56,6 +56,7 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
       difficulty,
     );
 
+    if (!mounted) return;
     _nextCard(cards);
   }
 
@@ -238,7 +239,10 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
                 minimumSize: const Size(double.infinity, 56),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-              onPressed: () => context.pushReplacement('/progress/${widget.setId}'),
+              onPressed: () {
+                if (!context.mounted) return;
+                context.pushReplacement('/progress/${widget.setId}');
+              },
               icon: const Icon(Icons.bar_chart),
               label: const Text('See Progress'),
             ),

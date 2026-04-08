@@ -19,15 +19,14 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
 
   Future<void> _handleCheckout(String uid) async {
     if (kIsWeb) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Payment processing is available on the mobile app. On web, contact us to upgrade.',
-            ),
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Payment processing is available on the mobile app. On web, contact us to upgrade.',
           ),
-        );
-      }
+        ),
+      );
       return;
     }
 
@@ -37,30 +36,33 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       // In a real app, this calls StripeService.startCheckout(uid)
       await Future.delayed(const Duration(seconds: 2));
       
+      if (!mounted) return;
+      
       // Since webhooks handle the actual Firestore update, we just 
       // show a message and wait for the redirect/webhook
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Redirecting to Stripe checkout...'),
-          ),
-        );
-        
-        // For testing/demo purposes, we manually update Firestore here 
-        // if webhooks aren't deployed, but for assessment, we emphasize 
-        // that the webhook is the source of truth.
-        await ref.read(firestoreRepositoryProvider).updateUserPremiumStatus(uid, true);
-        
-        context.go('/home');
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Redirecting to Stripe checkout...'),
+        ),
+      );
+      
+      // For testing/demo purposes, we manually update Firestore here 
+      // if webhooks aren't deployed, but for assessment, we emphasize 
+      // that the webhook is the source of truth.
+      final repository = ref.read(firestoreRepositoryProvider);
+      await repository.updateUserPremiumStatus(uid, true);
+      
+      if (!mounted) return;
+      context.go('/home');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Checkout error: ${e.toString()}')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Checkout error: ${e.toString()}')),
+      );
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -109,6 +111,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 const SizedBox(height: 24),
                 TextButton(
                   onPressed: () {
+                    if (!context.mounted) return;
                     // Simulation of Stripe Customer Portal
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Redirecting to Customer Portal...')),
@@ -120,7 +123,10 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
             ),
           ),
           if (_isLoading)
-            const Center(child: CircularProgressIndicator()),
+            Container(
+              color: Colors.black26,
+              child: const Center(child: CircularProgressIndicator()),
+            ),
         ],
       ),
     );
@@ -175,7 +181,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                   children: [
                     const Icon(Icons.check, size: 18, color: Colors.green),
                     const SizedBox(width: 8),
-                    Text(b),
+                    Expanded(child: Text(b)),
                   ],
                 ),
               )),

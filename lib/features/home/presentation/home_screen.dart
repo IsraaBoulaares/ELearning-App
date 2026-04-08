@@ -36,7 +36,10 @@ class HomeScreen extends ConsumerWidget {
             actions: [
               IconButton(
                 onPressed: () async {
-                  await ref.read(authRepositoryProvider).signOut();
+                  final authRepo = ref.read(authRepositoryProvider);
+                  await authRepo.signOut();
+                  if (!context.mounted) return;
+                  // Navigation handled by router redirect
                 },
                 icon: const Icon(Icons.logout),
                 tooltip: 'Log Out',
@@ -67,7 +70,7 @@ class HomeScreen extends ConsumerWidget {
                     );
                   },
                   loading: () => const SizedBox.shrink(),
-                  error: (_, _) => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
                 ),
                 if (!canCreateSet) const SizedBox(height: 12),
                 Expanded(
@@ -81,13 +84,18 @@ class HomeScreen extends ConsumerWidget {
 
                       return ListView.separated(
                         itemCount: sets.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final set = sets[index];
                           final isReady = set.status == 'ready';
 
                           return ListTile(
-                            onTap: isReady ? () => context.push('/study/${set.id}') : null,
+                            onTap: isReady 
+                              ? () {
+                                  if (!context.mounted) return;
+                                  context.push('/study/${set.id}');
+                                }
+                              : null,
                             leading: isReady
                                 ? CircleAvatar(
                                     backgroundColor:
@@ -106,7 +114,10 @@ class HomeScreen extends ConsumerWidget {
                             trailing: isReady
                                 ? IconButton(
                                     icon: const Icon(Icons.analytics_outlined),
-                                    onPressed: () => context.push('/progress/${set.id}'),
+                                    onPressed: () {
+                                      if (!context.mounted) return;
+                                      context.push('/progress/${set.id}');
+                                    },
                                     tooltip: 'View Progress',
                                   )
                                 : null,
@@ -127,6 +138,8 @@ class HomeScreen extends ConsumerWidget {
           ),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () {
+              if (!context.mounted) return;
+              
               if (canCreateSet) {
                 showModalBottomSheet<void>(
                   context: context,
