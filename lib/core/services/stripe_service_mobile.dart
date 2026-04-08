@@ -1,9 +1,22 @@
 import 'package:flutter_stripe/flutter_stripe.dart';
 
 class StripeService {
+  static bool _initialized = false;
+  
   static Future<void> initialize(String publishableKey) async {
+    // Set publishable key immediately (synchronous)
     Stripe.publishableKey = publishableKey;
-    await Stripe.instance.applySettings();
+    
+    // Apply settings can be slow, so we do it asynchronously without blocking
+    // The settings will be applied in the background
+    Stripe.instance.applySettings().then((_) {
+      _initialized = true;
+    }).catchError((error) {
+      // Silently fail if settings can't be applied
+      print('Stripe settings application failed: $error');
+    });
+    
+    // Return immediately without waiting for applySettings
   }
 
   /**
