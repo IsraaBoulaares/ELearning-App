@@ -4,17 +4,33 @@ This guide explains how to set up the full Stripe integration to process real te
 
 ## Prerequisites
 
-1. Firebase project on the Blaze (pay-as-you-go) plan
+1. **Firebase project on the Blaze (pay-as-you-go) plan**
+   - Go to https://console.firebase.google.com/project/YOUR_PROJECT/usage/details
+   - Click "Upgrade" to switch to Blaze plan
+   - Note: You only pay for what you use, and there's a generous free tier
 2. Stripe account (free test mode)
 3. Firebase CLI installed (`npm install -g firebase-tools`)
 
-## Step 1: Get Stripe API Keys
+## Step 1: Upgrade to Blaze Plan
+
+Cloud Functions require the Blaze plan. To upgrade:
+
+1. Visit: https://console.firebase.google.com/project/elearning-app-new/usage/details
+2. Click "Upgrade project"
+3. Add a payment method (credit card)
+4. The free tier includes:
+   - 2 million function invocations/month
+   - 400,000 GB-seconds of compute time
+   - 200,000 GB-seconds of memory
+   - Most small apps stay within free limits
+
+## Step 2: Get Stripe API Keys
 
 1. Go to https://dashboard.stripe.com/test/apikeys
 2. Copy your **Publishable key** (starts with `pk_test_`)
 3. Copy your **Secret key** (starts with `sk_test_`)
 
-## Step 2: Configure Cloud Functions
+## Step 3: Configure Cloud Functions
 
 1. Navigate to the functions directory:
 ```bash
@@ -26,12 +42,17 @@ cd functions
 npm install
 ```
 
-3. Set the Stripe secret key as an environment variable:
+## Step 4: Set Stripe Secret as Firebase Secret
+
+Instead of the deprecated config method, use Firebase Secrets:
+
 ```bash
-firebase functions:config:set stripe.secret_key="sk_test_YOUR_SECRET_KEY_HERE"
+firebase functions:secrets:set STRIPE_SECRET_KEY
 ```
 
-## Step 3: Deploy Cloud Functions
+When prompted, paste your Stripe secret key (starts with `sk_test_`).
+
+## Step 5: Deploy Cloud Functions
 
 Deploy the functions to Firebase:
 ```bash
@@ -44,7 +65,7 @@ This will deploy:
 - `enforceSetLimit` - Enforces free tier limits
 - `onFlashcardDifficultyUpdated` - Updates progress tracking
 
-## Step 4: Configure Stripe Webhook
+## Step 6: Configure Stripe Webhook
 
 1. Get your Cloud Function URL after deployment (it will be displayed in the terminal)
    - Example: `https://us-central1-YOUR_PROJECT.cloudfunctions.net/handleStripeWebhook`
@@ -62,17 +83,19 @@ This will deploy:
 
 6. Copy the **Signing secret** (starts with `whsec_`)
 
-7. Set it as an environment variable:
+7. Set it as a Firebase secret:
 ```bash
-firebase functions:config:set stripe.webhook_secret="whsec_YOUR_WEBHOOK_SECRET"
+firebase functions:secrets:set STRIPE_WEBHOOK_SECRET
 ```
 
-8. Redeploy functions:
+8. Update the webhook handler to use the secret (already done in code)
+
+9. Redeploy functions:
 ```bash
 firebase deploy --only functions
 ```
 
-## Step 5: Update Flutter App
+## Step 7: Update Flutter App
 
 The app is already configured to use the real Stripe integration. Just make sure you have the correct publishable key in `lib/main.dart`:
 
@@ -80,7 +103,7 @@ The app is already configured to use the real Stripe integration. Just make sure
 await StripeService.initialize('pk_test_YOUR_PUBLISHABLE_KEY_HERE');
 ```
 
-## Step 6: Test the Integration
+## Step 8: Test the Integration
 
 1. Run the Flutter app on Android or iOS (not web)
 2. Navigate to the paywall screen

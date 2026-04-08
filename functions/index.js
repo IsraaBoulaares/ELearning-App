@@ -9,8 +9,11 @@
 
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onCall } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+// Define secrets for Stripe API keys
+const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 
 admin.initializeApp();
 
@@ -102,51 +105,57 @@ exports.onFlashcardDifficultyUpdated = onDocumentUpdated(
  * The Flutter app calls this function, receives a checkout URL, and opens it.
  * After payment, Stripe redirects back to the app and sends a webhook.
  */
-exports.createCheckoutSession = onCall(async (request) => {
-  const userId = request.auth?.uid;
-  
-  if (!userId) {
-    throw new Error("Authentication required");
-  }
+exports.createCheckoutSession = onCall(
+  { secrets: [stripeSecretKey] },
+  async (request) => {
+    const userId = request.auth?.uid;
+    
+    if (!userId) {
+      throw new Error("Authentication required");
+    }
 
-  try {
-    // Create Stripe Checkout Session
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: "LearnFlow Premium",
-              description: "Unlimited learning sets and advanced analytics",
+    try {
+      // Initialize Stripe with the secret key
+      const stripe = require("stripe")(stripeSecretKey.value());
+      
+      // Create Stripe Checkout Session
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: "LearnFlow Premium",
+                description: "Unlimited learning sets and advanced analytics",
+              },
+              unit_amount: 499, // $4.99 in cents
+              recurring: {
+                interval: "month",
+              },
             },
-            unit_amount: 499, // $4.99 in cents
-            recurring: {
-              interval: "month",
-            },
+            quantity: 1,
           },
-          quantity: 1,
+        ],
+        mode: "subscription",
+        success_url: "https://your-app.com/success?session_id={CHECKOUT_SESSION_ID}",
+        cancel_url: "https://your-app.com/cancel",
+        client_reference_id: userId, // Used in webhook to identify the user
+        metadata: {
+          userId: userId,
         },
-      ],
-      mode: "subscription",
-      success_url: "https://your-app.com/success?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: "https://your-app.com/cancel",
-      client_reference_id: userId, // Used in webhook to identify the user
-      metadata: {
-        userId: userId,
-      },
-    });
+      });
 
-    return {
-      sessionId: session.id,
-      url: session.url,
-    };
-  } catch (error) {
-    console.error("Error creating checkout session:", error);
-    throw new Error("Failed to create checkout session");
+      return {
+        sessionId: session.id,
+        url: session.url,
+      };
+    } catch (error) {
+      console.error("Error creating checkout session:", error);
+      throw new Error("Failed to create checkout session");
+    }
   }
-});
+);
 
 /**
  * 4. SECURE PAYMENT VALIDATION: handleStripeWebhook
