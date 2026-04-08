@@ -38,49 +38,29 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       // 3. Open the Stripe Checkout page
       // 4. Wait for the webhook to update isPremium in Firestore
       
-      // Example of what the real implementation would look like:
-      // final checkoutUrl = await ref.read(firestoreRepositoryProvider).createCheckoutSession(uid);
-      // await StripeService.startCheckout(uid);
-      // Then Stripe redirects back to the app, and webhook updates Firestore
-      
       if (!mounted) return;
       
-      // For now, show a message explaining this is a demo
-      showDialog(
+      // Show mock payment form
+      final result = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Demo Mode'),
-          content: const Text(
-            'This is a demonstration app. In production:\n\n'
-            '1. This would open Stripe Checkout\n'
-            '2. You would enter payment details\n'
-            '3. After successful payment, a webhook would update your premium status\n\n'
-            'For assessment purposes, the Stripe integration is documented but not fully connected to avoid requiring real payment credentials.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Got it'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                // Simulate successful payment for demo
-                final repository = ref.read(firestoreRepositoryProvider);
-                await repository.updateUserPremiumStatus(uid, true);
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Demo: Premium activated! (In production, this would happen via webhook)'),
-                  ),
-                );
-                context.go('/home');
-              },
-              child: const Text('Simulate Payment'),
-            ),
-          ],
-        ),
+        barrierDismissible: false,
+        builder: (context) => _MockStripeCheckoutDialog(uid: uid),
       );
+      
+      if (result == true && mounted) {
+        // Payment successful
+        final repository = ref.read(firestoreRepositoryProvider);
+        await repository.updateUserPremiumStatus(uid, true);
+        
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment successful! Welcome to Premium 🎉'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        context.go('/home');
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -223,6 +203,238 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
               child: const Text('Upgrade Now'),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _MockStripeCheckoutDialog extends StatefulWidget {
+  const _MockStripeCheckoutDialog({required this.uid});
+  
+  final String uid;
+
+  @override
+  State<_MockStripeCheckoutDialog> createState() => _MockStripeCheckoutDialogState();
+}
+
+class _MockStripeCheckoutDialogState extends State<_MockStripeCheckoutDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _cardNumberController = TextEditingController(text: '4242 4242 4242 4242');
+  final _expiryController = TextEditingController(text: '12/25');
+  final _cvcController = TextEditingController(text: '123');
+  final _nameController = TextEditingController(text: 'Test User');
+  bool _isProcessing = false;
+
+  @override
+  void dispose() {
+    _cardNumberController.dispose();
+    _expiryController.dispose();
+    _cvcController.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _processPayment() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isProcessing = true);
+    
+    // Simulate payment processing
+    await Future.delayed(const Duration(seconds: 2));
+    
+    if (!mounted) return;
+    Navigator.of(context).pop(true); // Return success
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Image.asset(
+                        'assets/stripe_logo.png',
+                        height: 24,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.payment, size: 24),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Stripe Checkout',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: _isProcessing ? null : () => Navigator.of(context).pop(false),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 32),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Premium Plan',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '\$4.99/month',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue.shade900,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text('Unlimited learning sets • Advanced analytics'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Payment Information',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _cardNumberController,
+                    decoration: const InputDecoration(
+                      labelText: 'Card Number',
+                      hintText: '4242 4242 4242 4242',
+                      prefixIcon: Icon(Icons.credit_card),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Card number is required';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _expiryController,
+                          decoration: const InputDecoration(
+                            labelText: 'Expiry',
+                            hintText: 'MM/YY',
+                          ),
+                          keyboardType: TextInputType.datetime,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Required';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _cvcController,
+                          decoration: const InputDecoration(
+                            labelText: 'CVC',
+                            hintText: '123',
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Required';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Cardholder Name',
+                      hintText: 'John Doe',
+                      prefixIcon: Icon(Icons.person),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Name is required';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.amber.shade900, size: 20),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Demo Mode: This is a simulated payment form. Use the pre-filled test card.',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: _isProcessing ? null : _processPayment,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 56),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: _isProcessing
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text('Pay \$4.99', style: TextStyle(fontSize: 16)),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.lock, size: 14, color: Colors.grey.shade600),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Secured by Stripe',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
