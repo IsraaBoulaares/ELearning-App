@@ -32,39 +32,77 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // In a real implementation, this would:
-      // 1. Call your backend to create a Stripe Checkout Session
-      // 2. Get the checkout URL from the backend
-      // 3. Open the Stripe Checkout page
-      // 4. Wait for the webhook to update isPremium in Firestore
+      // Call the real Stripe checkout
+      final sessionId = await StripeService.startCheckout(uid);
       
       if (!mounted) return;
       
-      // Show mock payment form
-      final result = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => _MockStripeCheckoutDialog(uid: uid),
-      );
-      
-      if (result == true && mounted) {
-        // Payment successful
-        final repository = ref.read(firestoreRepositoryProvider);
-        await repository.updateUserPremiumStatus(uid, true);
-        
-        if (!mounted) return;
+      if (sessionId != null) {
+        // Show success message - webhook will update premium status
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Payment successful! Welcome to Premium 🎉'),
-            backgroundColor: Colors.green,
+            content: Text(
+              'Checkout opened! Complete payment in your browser. '
+              'Your premium status will update automatically.',
+            ),
+            duration: Duration(seconds: 5),
           ),
         );
+        
+        // Return to home - user can check back after payment
         context.go('/home');
+      } else {
+        throw Exception('Failed to create checkout session');
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Checkout error: ${e.toString()}')),
+      
+      // Show error with option to use demo mode
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Checkout Error'),
+          content: Text(
+            'Could not start Stripe checkout: ${e.toString()}\n\n'
+            'This might happen if:\n'
+            '• Cloud Functions are not deployed\n'
+            '• Stripe API key is not configured\n'
+            '• Network connection issues\n\n'
+            'Would you like to use demo mode instead?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                // Show mock payment form as fallback
+                final result = await showDialog<bool>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => _MockStripeCheckoutDialog(uid: uid),
+                );
+                
+                if (result == true && mounted) {
+                  final repository = ref.read(firestoreRepositoryProvider);
+                  await repository.updateUserPremiumStatus(uid, true);
+                  
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Demo payment successful! Welcome to Premium 🎉'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  context.go('/home');
+                }
+              },
+              child: const Text('Use Demo Mode'),
+            ),
+          ],
+        ),
       );
     } finally {
       if (mounted) {

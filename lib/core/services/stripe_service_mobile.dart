@@ -1,4 +1,6 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class StripeService {
   static bool _initialized = false;
@@ -20,14 +22,31 @@ class StripeService {
   }
 
   /**
-   * In a real implementation, this would call your backend to 
-   * create a Stripe Checkout Session and return the URL. 
-   * Here we simulate the trigger.
+   * Creates a Stripe Checkout Session via Cloud Function and opens it
    */
-  static Future<void> startCheckout(String uid) async {
-    // 1. Call Cloud Function to create session
-    // 2. Redirect to Stripe Checkout URL
-    // 3. Webhook (handleStripeWebhook) will update Firestore
+  static Future<String?> startCheckout(String uid) async {
+    try {
+      // Call Cloud Function to create checkout session
+      final functions = FirebaseFunctions.instance;
+      final result = await functions.httpsCallable('createCheckoutSession').call();
+      
+      final data = result.data as Map<String, dynamic>;
+      final checkoutUrl = data['url'] as String?;
+      
+      if (checkoutUrl != null) {
+        // Open Stripe Checkout in browser
+        final uri = Uri.parse(checkoutUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return data['sessionId'] as String?;
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      print('Error starting checkout: $e');
+      rethrow;
+    }
   }
 
   /**
@@ -35,5 +54,6 @@ class StripeService {
    */
   static Future<void> openCustomerPortal() async {
     // This requires a backend call to generate a portal link
+    // Would be implemented similarly to startCheckout
   }
 }

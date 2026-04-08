@@ -8,7 +8,9 @@
  */
 
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onCall } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 admin.initializeApp();
 
@@ -93,7 +95,61 @@ exports.onFlashcardDifficultyUpdated = onDocumentUpdated(
 );
 
 /**
- * 3. SECURE PAYMENT VALIDATION: handleStripeWebhook
+ * 3. CREATE STRIPE CHECKOUT SESSION
+ * Trigger: Callable HTTPS Function
+ * 
+ * Purpose: Securely creates a Stripe Checkout Session on the backend.
+ * The Flutter app calls this function, receives a checkout URL, and opens it.
+ * After payment, Stripe redirects back to the app and sends a webhook.
+ */
+exports.createCheckoutSession = onCall(async (request) => {
+  const userId = request.auth?.uid;
+  
+  if (!userId) {
+    throw new Error("Authentication required");
+  }
+
+  try {
+    // Create Stripe Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: "LearnFlow Premium",
+              description: "Unlimited learning sets and advanced analytics",
+            },
+            unit_amount: 499, // $4.99 in cents
+            recurring: {
+              interval: "month",
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "subscription",
+      success_url: "https://your-app.com/success?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: "https://your-app.com/cancel",
+      client_reference_id: userId, // Used in webhook to identify the user
+      metadata: {
+        userId: userId,
+      },
+    });
+
+    return {
+      sessionId: session.id,
+      url: session.url,
+    };
+  } catch (error) {
+    console.error("Error creating checkout session:", error);
+    throw new Error("Failed to create checkout session");
+  }
+});
+
+/**
+ * 4. SECURE PAYMENT VALIDATION: handleStripeWebhook
  * Trigger: HTTPS Request (from Stripe Webhooks)
  * 
  * Purpose: This is the gold standard for subscription security. 
