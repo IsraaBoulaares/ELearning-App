@@ -26,7 +26,7 @@ admin.initializeApp();
  * bypass the UI to create extra sets beyond the Free Tier limit.
  */
 exports.enforceSetLimit = onDocumentCreated(
-  "users/{userId}/learning_sets/{setId}",
+  "users/{userId}/learningSets/{setId}",
   async (event) => {
     const userId = event.params.userId;
     const userRef = admin.firestore().doc(`users/${userId}`);
@@ -63,7 +63,7 @@ exports.enforceSetLimit = onDocumentCreated(
  * This ensures the Home screen always shows accurate stats.
  */
 exports.onFlashcardDifficultyUpdated = onDocumentUpdated(
-  "users/{userId}/learning_sets/{setId}/flashcards/{cardId}",
+  "users/{userId}/learningSets/{setId}/flashcards/{cardId}",
   async (event) => {
     const beforeData = event.data.before.data();
     const afterData = event.data.after.data();
@@ -74,7 +74,7 @@ exports.onFlashcardDifficultyUpdated = onDocumentUpdated(
     const userId = event.params.userId;
     const setId = event.params.setId;
     const progressRef = admin.firestore().doc(
-      `users/${userId}/learning_sets/${setId}/meta/progress`
+      `users/${userId}/learningSets/${setId}/meta/progress`
     );
 
     const updates = {};
