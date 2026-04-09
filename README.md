@@ -4,6 +4,30 @@
 
 LearnFlow is a Flutter-based mobile and web application that transforms study materials into intelligent flashcards with adaptive learning capabilities. Users paste their notes or textbook content, and the app automatically generates question-and-answer flashcard sets, tracks review progress, and adapts to individual learning patterns. The app implements a freemium model where free users can create up to 3 flashcard sets, while premium subscribers enjoy unlimited set creation.
 
+## FlutterFlow Screen
+
+This project includes a FlutterFlow screen prototype that demonstrates the visual design and user flow for the learning experience.
+
+**FlutterFlow Project Link:** [https://app.flutterflow.io/share/e-learning-xk1706](https://app.flutterflow.io/share/e-learning-xk1706)
+
+**What's Included:**
+
+The FlutterFlow prototype showcases the UI/UX design for key screens in the application, including:
+- Visual design mockups for the learning interface
+- Interactive prototypes demonstrating user flows
+- Design system components and styling
+
+**Note on Implementation:**
+
+While the FlutterFlow project provides the visual design reference, the actual production application is built with hand-coded Flutter for several reasons:
+- **Better Code Quality:** Clean architecture with proper separation of concerns
+- **Type Safety:** Compile-time error checking with Riverpod state management
+- **Maintainability:** Feature-based folder structure for scalable development
+- **Performance:** Optimized rendering and efficient state management
+- **Flexibility:** Full control over business logic and Firebase integration
+
+The FlutterFlow prototype serves as a design specification and visual reference, while the production code implements these designs with enterprise-grade architecture patterns.
+
 ## Architecture Decisions
 
 ### Flutter + Riverpod + Repository Pattern
