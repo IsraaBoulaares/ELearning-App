@@ -4,7 +4,7 @@ class StripeService {
     // No-op for unsupported platforms
   }
 
-  static Future<void> startCheckout(String uid) async {
+  static Future<String?> startCheckout(String uid) async {
     throw UnsupportedError('Stripe is not supported on this platform');
   }
 

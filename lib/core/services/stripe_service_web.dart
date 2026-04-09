@@ -5,9 +5,10 @@ class StripeService {
     // For web payments, use Stripe.js directly or redirect to Stripe Checkout
   }
 
-  static Future<void> startCheckout(String uid) async {
+  static Future<String?> startCheckout(String uid) async {
     // In a real implementation, redirect to Stripe Checkout URL
     // obtained from your backend
+    return null;
   }
 
   static Future<void> openCustomerPortal() async {

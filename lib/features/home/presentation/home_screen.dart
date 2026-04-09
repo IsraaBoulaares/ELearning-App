@@ -307,44 +307,75 @@ class HomeScreen extends ConsumerWidget {
     VoidCallback onTap,
     VoidCallback onProgressTap,
   ) {
-    return GestureDetector(
-      onTap: isReady ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: AppTheme.cardGradient,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppTheme.primaryPurple.withOpacity(0.2),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.cardBackground,
+            AppTheme.cardBackground.withOpacity(0.8),
           ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isReady 
+            ? AppTheme.primaryPurple.withOpacity(0.3)
+            : AppTheme.textSecondary.withOpacity(0.2),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isReady 
+              ? AppTheme.primaryPurple.withOpacity(0.15)
+              : Colors.black.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isReady ? onTap : null,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
               children: [
+                // Icon with gradient background
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 64,
+                  height: 64,
                   decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                    borderRadius: BorderRadius.circular(12),
+                    gradient: isReady 
+                      ? AppTheme.primaryGradient
+                      : LinearGradient(
+                          colors: [
+                            AppTheme.textSecondary.withOpacity(0.5),
+                            AppTheme.textSecondary.withOpacity(0.3),
+                          ],
+                        ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: isReady 
+                          ? AppTheme.primaryPurple.withOpacity(0.3)
+                          : Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: const Icon(
-                    Icons.book_rounded,
+                    Icons.layers_rounded,
                     color: Colors.white,
-                    size: 24,
+                    size: 32,
                   ),
                 ),
                 const SizedBox(width: 16),
+                
+                // Content
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,13 +384,14 @@ class HomeScreen extends ConsumerWidget {
                         title,
                         style: const TextStyle(
                           color: AppTheme.textPrimary,
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
+                          letterSpacing: -0.5,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Icon(
@@ -367,64 +399,84 @@ class HomeScreen extends ConsumerWidget {
                             size: 16,
                             color: AppTheme.textSecondary,
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(width: 6),
                           Text(
                             '$cardCount cards',
                             style: const TextStyle(
                               color: AppTheme.textSecondary,
-                              fontSize: 14,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      
+                      // Status badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isReady
+                              ? AppTheme.easyGreen.withOpacity(0.15)
+                              : AppTheme.mediumAmber.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isReady ? AppTheme.easyGreen : AppTheme.mediumAmber,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isReady ? Icons.check_circle : Icons.schedule,
+                              size: 14,
+                              color: isReady ? AppTheme.easyGreen : AppTheme.mediumAmber,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isReady ? 'Ready' : 'Processing',
+                              style: TextStyle(
+                                color: isReady ? AppTheme.easyGreen : AppTheme.mediumAmber,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
+                
+                // Action button
                 if (isReady)
-                  IconButton(
-                    onPressed: onProgressTap,
-                    icon: const Icon(
-                      Icons.analytics_rounded,
-                      color: AppTheme.secondaryTeal,
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppTheme.secondaryTeal.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppTheme.secondaryTeal.withOpacity(0.3),
+                        width: 1,
+                      ),
                     ),
-                    tooltip: 'View Progress',
+                    child: IconButton(
+                      onPressed: onProgressTap,
+                      icon: const Icon(
+                        Icons.analytics_rounded,
+                        color: AppTheme.secondaryTeal,
+                        size: 24,
+                      ),
+                      tooltip: 'View Progress',
+                      padding: EdgeInsets.zero,
+                    ),
                   ),
               ],
             ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isReady
-                    ? AppTheme.easyGreen.withOpacity(0.2)
-                    : AppTheme.mediumAmber.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isReady ? AppTheme.easyGreen : AppTheme.mediumAmber,
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isReady ? Icons.check_circle_rounded : Icons.hourglass_empty_rounded,
-                    size: 16,
-                    color: isReady ? AppTheme.easyGreen : AppTheme.mediumAmber,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    isReady ? 'Ready' : 'Processing',
-                    style: TextStyle(
-                      color: isReady ? AppTheme.easyGreen : AppTheme.mediumAmber,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

@@ -16,7 +16,7 @@ class FirestoreRepository {
   }
 
   CollectionReference<Map<String, dynamic>> _learningSets(String uid) {
-    return _userDoc(uid).collection('learning_sets');
+    return _userDoc(uid).collection('learningSets');
   }
 
   CollectionReference<Map<String, dynamic>> _flashcards(String uid, String setId) {
@@ -118,25 +118,30 @@ class FirestoreRepository {
 
     final batch = _firestore.batch();
     
-    // 1. Create the learning set
+    // 1. Create the learning set document
+    // Path: users/{uid}/learningSets/{setId}
     batch.set(setRef, set.toMap());
     
-    // 2. Create all flashcards
+    // 2. Create all flashcard documents
+    // Path: users/{uid}/learningSets/{setId}/flashcards/{cardId}
     for (var data in flashcardData) {
       final cardRef = _flashcards(uid, setRef.id).doc();
       batch.set(cardRef, data);
     }
     
-    // 3. Create the progress tracking doc
+    // 3. Create the progress tracking document
+    // Path: users/{uid}/learningSets/{setId}/meta/progress
     batch.set(progressRef, progress.toMap());
     
     // 4. Update the user's set count
+    // Path: users/{uid}
     batch.set(userRef, {'setsCount': FieldValue.increment(1)}, SetOptions(merge: true));
 
     await batch.commit();
   }
 
   Stream<List<LearningSet>> getLearningSets(String uid) {
+    // Path: users/{uid}/learningSets
     return _learningSets(uid)
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -144,6 +149,7 @@ class FirestoreRepository {
   }
 
   Stream<List<Flashcard>> getFlashcards(String uid, String setId) {
+    // Path: users/{uid}/learningSets/{setId}/flashcards
     return _flashcards(uid, setId)
         .snapshots()
         .map((snapshot) => snapshot.docs.map(Flashcard.fromFirestore).toList());
@@ -155,25 +161,52 @@ class FirestoreRepository {
     String cardId,
     Difficulty difficulty,
   ) async {
-    final cardRef = _flashcards(uid, setId).doc(cardId);
-    final progressRef = _progressDoc(uid, setId);
-    final now = DateTime.now();
-
-    final batch = _firestore.batch();
-    batch.update(cardRef, {
-      'difficulty': difficulty.name,
-      'lastReviewedAt': Timestamp.fromDate(now),
+    final newDifficulty = difficulty.name;
+    
+    // 1. Read the current flashcard to get previous difficulty
+    // Path: users/{uid}/learningSets/{setId}/flashcards/{cardId}
+    final cardDoc = await _flashcards(uid, setId).doc(cardId).get();
+    
+    if (!cardDoc.exists) {
+      throw Exception('Card not found');
+    }
+    
+    final previousDifficulty = cardDoc.data()?['difficulty'] as String? ?? 'unreviewed';
+    
+    // 2. If difficulty hasn't changed, do nothing
+    if (previousDifficulty == newDifficulty) return;
+    
+    // 3. Build the update map
+    final Map<String, dynamic> progressUpdate = {};
+    
+    // 4. If was unreviewed, increment reviewed counter
+    if (previousDifficulty == 'unreviewed') {
+      progressUpdate['reviewed'] = FieldValue.increment(1);
+    }
+    
+    // 5. If was previously rated (not unreviewed), decrement old counter
+    if (previousDifficulty != 'unreviewed') {
+      progressUpdate[previousDifficulty] = FieldValue.increment(-1);
+    }
+    
+    // 6. Always increment new difficulty counter
+    progressUpdate[newDifficulty] = FieldValue.increment(1);
+    progressUpdate['lastStudiedAt'] = Timestamp.now();
+    
+    // 7. Update flashcard difficulty
+    // Path: users/{uid}/learningSets/{setId}/flashcards/{cardId}
+    await _flashcards(uid, setId).doc(cardId).update({
+      'difficulty': newDifficulty,
+      'lastReviewedAt': Timestamp.now(),
     });
-    batch.set(progressRef, {
-      'reviewed': FieldValue.increment(1),
-      difficulty.name: FieldValue.increment(1),
-      'lastStudiedAt': Timestamp.fromDate(now),
-    }, SetOptions(merge: true));
-
-    await batch.commit();
+    
+    // 8. Update progress counters
+    // Path: users/{uid}/learningSets/{setId}/meta/progress
+    await _progressDoc(uid, setId).set(progressUpdate, SetOptions(merge: true));
   }
 
   Future<Progress> getProgress(String uid, String setId) async {
+    // Path: users/{uid}/learningSets/{setId}/meta/progress
     final snapshot = await _progressDoc(uid, setId).get();
     if (!snapshot.exists) {
       return Progress(
@@ -192,5 +225,70 @@ class FirestoreRepository {
 
   Future<void> updateUserPremiumStatus(String uid, bool isPremium) async {
     await _userDoc(uid).update({'isPremium': isPremium});
+  }
+
+  /// Helper method to reset progress counters for a learning set
+  /// Use this to fix corrupted progress data
+  /// Path: users/{uid}/learningSets/{setId}/meta/progress
+  Future<void> resetProgressCounters(String uid, String setId) async {
+    await _progressDoc(uid, setId).set({
+      'reviewed': 0,
+      'easy': 0,
+      'medium': 0,
+      'hard': 0,
+      'lastStudiedAt': null,
+    }, SetOptions(merge: true));
+  }
+
+  /// Helper method to recalculate progress from actual flashcard data
+  /// Use this to rebuild progress counters from scratch
+  /// Reads from: users/{uid}/learningSets/{setId}/flashcards
+  /// Writes to: users/{uid}/learningSets/{setId}/meta/progress
+  Future<void> recalculateProgress(String uid, String setId) async {
+    final flashcardsSnapshot = await _flashcards(uid, setId).get();
+    
+    int reviewed = 0;
+    int easy = 0;
+    int medium = 0;
+    int hard = 0;
+    DateTime? lastStudiedAt;
+    
+    for (final doc in flashcardsSnapshot.docs) {
+      final data = doc.data();
+      final difficulty = data['difficulty'] as String? ?? 'unreviewed';
+      final lastReviewedAt = data['lastReviewedAt'] as Timestamp?;
+      
+      if (difficulty != 'unreviewed') {
+        reviewed++;
+        
+        switch (difficulty) {
+          case 'easy':
+            easy++;
+            break;
+          case 'medium':
+            medium++;
+            break;
+          case 'hard':
+            hard++;
+            break;
+        }
+        
+        if (lastReviewedAt != null) {
+          final reviewDate = lastReviewedAt.toDate();
+          if (lastStudiedAt == null || reviewDate.isAfter(lastStudiedAt)) {
+            lastStudiedAt = reviewDate;
+          }
+        }
+      }
+    }
+    
+    await _progressDoc(uid, setId).set({
+      'totalCards': flashcardsSnapshot.docs.length,
+      'reviewed': reviewed,
+      'easy': easy,
+      'medium': medium,
+      'hard': hard,
+      'lastStudiedAt': lastStudiedAt != null ? Timestamp.fromDate(lastStudiedAt) : null,
+    }, SetOptions(merge: true));
   }
 }

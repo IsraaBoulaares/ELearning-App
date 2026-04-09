@@ -80,7 +80,7 @@ users/{userId}
   /learningSets/{setId}
     - title: string
     - rawText: string
-    - status: string
+    - status: string (ready | processing)
     - createdAt: timestamp
     - cardCount: number
     - userId: string
@@ -93,6 +93,7 @@ users/{userId}
       - lastReviewedAt: timestamp | null
 
     /meta/progress
+      - setId: string
       - totalCards: number
       - reviewed: number
       - easy: number
@@ -109,7 +110,7 @@ All user data is scoped under `users/{userId}`, ensuring complete data isolation
 
 **Learning Sets as Subcollection:**
 
-Learning sets are stored as a subcollection under each user document rather than a top-level collection. This design decision ensures that:
+Learning sets are stored as a subcollection under each user document (`learningSets` in camelCase) rather than a top-level collection. This design decision ensures that:
 - All queries are automatically scoped to the authenticated user
 - Firestore security rules can use simple path-based validation
 - Deleting a user account can cascade delete all their data
@@ -130,6 +131,80 @@ Progress tracking is stored in a separate `meta/progress` document rather than a
 - Avoids expensive aggregation queries that would read all flashcards
 - Provides instant access to progress statistics with a single document read
 - Scales efficiently regardless of flashcard count per set
+
+**Progress Tracking Logic:**
+
+The progress counters are updated with careful logic to prevent double-counting:
+- When a card is reviewed for the first time (unreviewed → easy/medium/hard): increment `reviewed` counter AND the difficulty counter
+- When a card's difficulty changes (easy → medium): decrement old difficulty counter, increment new difficulty counter, do NOT touch `reviewed` counter
+- When the same difficulty is selected again: only update `lastStudiedAt` timestamp
+
+This ensures accurate progress tracking where `reviewed` represents unique cards reviewed, not total review actions.
+
+## Design System
+
+### Premium Dark Theme
+
+The app features a modern, premium dark theme with a carefully crafted color palette:
+
+**Primary Colors:**
+- Primary Purple: `#6C63FF` - Used for primary actions, gradients, and highlights
+- Secondary Teal: `#03DAC6` - Used for accents, success states, and analytics
+- Background Dark: `#0F0F1A` - Deep navy background for the entire app
+- Card Background: `#1E1E2E` - Slightly lighter for elevated surfaces
+
+**Semantic Colors:**
+- Easy Green: `#4CAF50` - Indicates easy difficulty and success states
+- Medium Amber: `#FFC107` - Indicates medium difficulty and warnings
+- Hard Red: `#F44336` - Indicates hard difficulty and errors
+- Text Primary: `#FFFFFF` - Main text color
+- Text Secondary: `#B0B0C3` - Secondary text and labels
+
+**Design Principles:**
+- All cards use 16px border radius for consistency
+- Gradient backgrounds on primary actions and premium features
+- Subtle shadows with color-coded glows (purple for premium, green for success)
+- Smooth animations and transitions throughout
+- Accessibility-compliant contrast ratios
+
+### Key Screens
+
+**Home Screen:**
+- Welcome header with user email and greeting emoji
+- Subscription status card (gradient gold for premium, purple for free)
+- Learning sets displayed as cards with:
+  - Gradient icon backgrounds
+  - Card count and status badges
+  - Analytics button for progress tracking
+  - Tap to study, long-press for options
+
+**Study Screen:**
+- Full-screen flashcard with flip animation
+- Gradient border on card
+- Progress bar at top showing completion percentage
+- Easy/Medium/Hard difficulty chips with color coding
+- Smooth card transitions
+
+**Progress Screen:**
+- Large circular progress indicator (color-coded by completion)
+- Three stat cards showing Easy/Medium/Hard counts
+- Difficulty distribution bars with gradients
+- Last studied timestamp with human-readable format
+- Visual analytics dashboard
+
+**Paywall Screen:**
+- Hero section with premium icon and compelling headline
+- Side-by-side comparison of Free vs Premium plans
+- Feature list with checkmarks/crosses
+- "Why Go Premium?" benefits section with icons
+- Gradient upgrade button
+- Security trust badge
+
+**Authentication Screens:**
+- Clean, minimal design with app branding
+- Gradient buttons for primary actions
+- Rounded text fields with subtle borders
+- Error states with clear messaging
 
 ## Cost Optimization Approach
 
@@ -504,23 +579,72 @@ firebase deploy --only functions
 
 1. Create a Stripe account at https://stripe.com
 
-2. Get your publishable key from the Stripe Dashboard
+2. Get your test API keys from the Stripe Dashboard (Developers → API keys)
 
 3. Update `lib/main.dart` with your Stripe publishable key:
 ```dart
-await StripeService.initialize('pk_test_YOUR_KEY_HERE');
+const stripePublishableKey = 'pk_test_YOUR_PUBLISHABLE_KEY_HERE';
+await StripeService.initialize(stripePublishableKey);
 ```
 
-4. Configure Stripe webhook:
+4. Set up Cloud Function for Stripe Checkout (requires Blaze plan):
+```bash
+cd functions
+npm install stripe
+```
+
+5. Configure Stripe secret key using Firebase Secrets (recommended):
+```bash
+firebase functions:secrets:set STRIPE_SECRET_KEY
+# Enter your sk_test_... key when prompted
+```
+
+6. Deploy the Cloud Function:
+```bash
+firebase deploy --only functions:createCheckoutSession
+```
+
+7. Configure Stripe webhook for subscription updates:
    - Go to Stripe Dashboard → Developers → Webhooks
    - Add endpoint: `https://YOUR_REGION-YOUR_PROJECT.cloudfunctions.net/handleStripeWebhook`
-   - Select events: `checkout.session.completed`, `customer.subscription.deleted`
+   - Select events: `checkout.session.completed`, `customer.subscription.deleted`, `customer.subscription.updated`
    - Copy the webhook signing secret
+   - Set it in Firebase: `firebase functions:secrets:set STRIPE_WEBHOOK_SECRET`
 
-5. Set webhook secret in Firebase:
+8. Deploy the webhook handler:
 ```bash
-firebase functions:config:set stripe.webhook_secret="whsec_YOUR_SECRET"
+firebase deploy --only functions:handleStripeWebhook
 ```
+
+**Note:** The app includes a demo/fallback mode for testing without deployed Cloud Functions. Real Stripe integration requires the Blaze plan and deployed functions.
+
+### Troubleshooting Progress Tracking
+
+If progress counters show incorrect values (e.g., "3 of 1 cards reviewed, 300%"):
+
+1. **Use the Reset Helper Screen** (temporary debugging tool):
+   - Add to HomeScreen AppBar:
+   ```dart
+   import '../learning/presentation/reset_progress_helper.dart';
+   
+   IconButton(
+     onPressed: () => Navigator.push(context, 
+       MaterialPageRoute(builder: (_) => const ResetProgressHelper())),
+     icon: const Icon(Icons.build),
+   ),
+   ```
+   - Tap "Recalculate" for each learning set to rebuild counters from actual flashcard data
+   - Remove the button after fixing
+
+2. **Manual Firestore Console Reset:**
+   - Navigate to `users/{uid}/learningSets/{setId}/meta/progress`
+   - Set all counters to 0: `reviewed: 0, easy: 0, medium: 0, hard: 0`
+
+3. **Verify Collection Name:**
+   - Ensure Firestore uses `learningSets` (camelCase), not `learning_sets`
+   - Check `lib/features/learning/data/firestore_repository.dart` line 18
+
+See `RESET_PROGRESS_INSTRUCTIONS.md` for detailed steps.
 
 ### Environment Variables
 
@@ -534,9 +658,23 @@ STRIPE_WEBHOOK_SECRET=whsec_YOUR_SECRET
 
 ### Run the App
 
+**Navigate to project directory:**
+```bash
+cd C:\src\flutter\flutter\elearning_app
+```
+
 **Web:**
 ```bash
 flutter run -d chrome
+```
+
+**Android Physical Device:**
+```bash
+# List connected devices
+flutter devices
+
+# Run on specific device (replace with your device ID)
+flutter run -d R5CW30C3FGE
 ```
 
 **Android Emulator:**
@@ -554,16 +692,93 @@ flutter run -d ios
 flutter run -d windows
 ```
 
+### Development Tips
+
+**Use Hot Reload for Fast Iteration:**
+
+After the initial launch (which can take 30-60 seconds), keep the app running and use hot reload:
+- Press `r` in terminal for hot reload (2-3 seconds)
+- Press `R` for hot restart (10-15 seconds)
+- Press `q` to quit
+
+**Speed Up Launch Time:**
+
+The app has timeouts for Firebase and Stripe initialization to prevent blocking:
+- Stripe: 3 second timeout
+- Firebase: 5 second timeout
+
+You can reduce these in `lib/main.dart` if needed:
+```dart
+await StripeService.initialize(stripeKey).timeout(
+  const Duration(seconds: 1),  // Reduce from 3s
+  onTimeout: () => null,
+);
+```
+
+**Profile/Release Builds:**
+
+For testing performance:
+```bash
+flutter run --profile -d R5CW30C3FGE  # Profile mode
+flutter run --release -d R5CW30C3FGE  # Release mode (no debugging)
+```
+
+Release builds are 5-10x faster but you lose hot reload and debugging capabilities.
+
 ### Testing Subscription Flow
 
 1. Create a test account in the app
 2. Create 3 flashcard sets (free tier limit)
 3. Attempt to create a 4th set - paywall should appear
-4. Use Stripe test card: `4242 4242 4242 4242`, any future expiry, any CVC
-5. Complete checkout
-6. Webhook updates `isPremium: true` in Firestore
-7. App automatically reflects premium status
-8. Create additional sets without restriction
+4. Click "Upgrade to Premium"
+5. **If Cloud Functions are deployed:**
+   - Real Stripe Checkout opens in browser
+   - Use test card: `4242 4242 4242 4242`, any future expiry, any CVC
+   - Complete checkout
+   - Webhook updates `isPremium: true` in Firestore
+   - Return to app - premium status reflects automatically
+6. **If Cloud Functions not deployed (demo mode):**
+   - Mock payment form appears
+   - Pre-filled with test card data
+   - Click "Pay $4.99" to simulate payment
+   - Premium status updates immediately
+7. Create additional sets without restriction
+
+### Testing Progress Tracking
+
+1. Create a learning set with at least 3 cards
+2. Open the set and review the first card
+3. Rate it as "Easy"
+4. Check progress screen - should show "1 of 3 cards reviewed (33%)"
+5. Review the same card again, rate as "Medium"
+6. Check progress - should still show "1 of 3 cards reviewed" (not 2)
+7. Review a second card, rate as "Hard"
+8. Check progress - should now show "2 of 3 cards reviewed (67%)"
+9. Verify difficulty distribution bars show correct counts
+
+### Common Issues
+
+**"No pubspec.yaml file found":**
+- You're running Flutter from the wrong directory
+- Solution: `cd C:\src\flutter\flutter\elearning_app` first
+
+**"Couldn't resolve package 'intl'":**
+- Run `flutter pub get` to install dependencies
+
+**Progress shows 300% or incorrect counts:**
+- See "Troubleshooting Progress Tracking" section above
+- Use the Reset Helper Screen to recalculate from actual data
+
+**Stripe checkout fails:**
+- Check if Cloud Functions are deployed: `firebase functions:list`
+- Verify Blaze plan is active
+- Check function logs: `firebase functions:log`
+- Use demo mode as fallback (shows mock payment form)
+
+**App takes too long to launch:**
+- First launch is always slow (30-60s for Android)
+- Use hot reload (`r`) for subsequent changes
+- Consider using `--profile` or `--release` mode for speed testing
 
 ### Production Deployment
 
